@@ -1,9 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  engineType      = "library"
+  previewFeatures = ["postgresqlExtensions", "driverAdapters"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector]
 }
 
 model User {
@@ -14,52 +17,65 @@ model User {
   avatar    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  reels       Reel[]
-  collections Collection[]
+
+  reels        Reel[]
+  collections  Collection[]
+  chatSessions ChatSession[]
 }
 
 model Reel {
-  id              String   @id @default(uuid())
-  url             String
-  title           String?
-  description     String?
-  summary         String?
-  thumbnail       String?
-  creator         String?
-  priority        Int      @default(0) // 0: Normal, 1: High
-  isFavorite      Boolean  @default(false)
-  isImportant     Boolean  @default(false)
-  isWatchLater    Boolean  @default(false)
-  
+  id           String  @id @default(uuid())
+  url          String
+  title        String?
+  description  String?
+  summary      String?
+  thumbnail    String?
+  creator      String?
+  priority     Int     @default(0) // 0: Normal, 1: High
+  isFavorite   Boolean @default(false)
+  isImportant  Boolean @default(false)
+  isWatchLater Boolean @default(false)
+
   // AI Generated fields
   aiSummary       String?
   aiKeywords      String[]
   difficulty      String?
-  estimatedTime   Int?     // in minutes
+  estimatedTime   Int? // in minutes
   keyTakeaways    String[]
   actionItems     String[]
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
-  
-  categoryId      String?
-  category        Category? @relation(fields: [categoryId], references: [id])
-  
-  collections     ReelCollection[]
-  tags            ReelTag[]
-  notes           Note[]
+  technologies    String[]
+  frameworks      String[]
+  tools           String[]
+  confidenceScore Float?
+
+  // Vector Embeddings
+  embedding Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  collections ReelCollection[]
+  tags        ReelTag[]
+  notes       Note[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([categoryId])
+  @@index([isFavorite])
+  @@index([isWatchLater])
 }
 
 model Category {
   id        String   @id @default(uuid())
   name      String   @unique
   createdAt DateTime @default(now())
-  
-  reels     Reel[]
+
+  reels Reel[]
 }
 
 model Collection {
@@ -69,7 +85,7 @@ model Collection {
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
 
-  reels     ReelCollection[]
+  reels ReelCollection[]
 }
 
 model ReelCollection {
@@ -82,18 +98,18 @@ model ReelCollection {
 }
 
 model Tag {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  color     String?
-  
-  reels     ReelTag[]
+  id    String  @id @default(uuid())
+  name  String  @unique
+  color String?
+
+  reels ReelTag[]
 }
 
 model ReelTag {
   reelId String
   tagId  String
-  reel   Reel @relation(fields: [reelId], references: [id])
-  tag    Tag  @relation(fields: [tagId], references: [id])
+  reel   Reel   @relation(fields: [reelId], references: [id])
+  tag    Tag    @relation(fields: [tagId], references: [id])
 
   @@id([reelId, tagId])
 }
@@ -103,6 +119,53 @@ model Note {
   content   String
   reelId    String
   reel      Reel     @relation(fields: [reelId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  title     String?
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id])
+  role      String // 'user' | 'assistant'
+  content   String
+  sources   String[] // Reel IDs referenced
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId, createdAt(sort: Asc)])
+}
+
+model PromptLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  promptName   String
+  version      String
+  input        String
+  output       String?
+  tokensUsed   Int      @default(0)
+  durationMs   Int      @default(0)
+  success      Boolean  @default(true)
+  errorDetails String?
+  createdAt    DateTime @default(now())
+}
+
+model JobQueue {
+  id        String   @id @default(uuid())
+  type      String // e.g. 'generate_metadata', 'generate_embedding'
+  payload   String // JSON string
+  status    String   @default("pending") // 'pending', 'processing', 'completed', 'failed'
+  attempts  Int      @default(0)
+  error     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

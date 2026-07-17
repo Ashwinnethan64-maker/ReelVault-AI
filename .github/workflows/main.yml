@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install Root Dependencies
+      run: npm install
+      
+    - name: Backend Build & Test
+      working-directory: ./backend
+      run: |
+        npm ci
+        npx prisma generate
+        npm run build
+        npx vitest run
+        
+    - name: Frontend Build & Test
+      working-directory: ./frontend
+      run: |
+        npm ci
+        npx vitest run
+        npm run build

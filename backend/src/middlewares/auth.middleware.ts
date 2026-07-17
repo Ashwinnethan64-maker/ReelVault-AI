@@ -1,11 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import prisma from '../lib/prisma';
+import { supabase } from '../lib/supabase';
 
 export interface AuthRequest extends Request {
   user?: {
     id: string;
-    email: string;
+    email?: string;
   };
 }
 
@@ -16,23 +15,23 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
     try {
       token = req.headers.authorization.split(' ')[1];
 
-      // Decode token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
+      // Retrieve user from Supabase using the Bearer token
+      // This cryptographically verifies the token signature on Supabase's end
+      const { data: { user }, error } = await supabase.auth.getUser(token);
 
-      // Find user
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: { id: true, email: true },
-      });
-
-      if (!user) {
-        return res.status(401).json({ message: 'Not authorized, user not found' });
+      if (error || !user) {
+        console.error("Supabase JWT Verification Error:", error);
+        return res.status(401).json({ message: 'Not authorized, token failed' });
       }
 
-      req.user = user;
+      req.user = {
+        id: user.id,
+        email: user.email,
+      };
+
       next();
     } catch (error) {
-      console.error(error);
+      console.error("Auth Middleware Error:", error);
       res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }

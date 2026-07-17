@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "module": "commonjs",
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "rootDir": "./src",
     "outDir": "./dist",
     "esModuleInterop": true,
@@ -13,3 +15,4 @@
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.test.ts"]
 }
+

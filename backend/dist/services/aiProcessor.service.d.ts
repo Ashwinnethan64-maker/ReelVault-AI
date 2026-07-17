@@ -1,0 +1,28 @@
+export declare const processReelMetadata: (reelId: string, content: string) => Promise<{
+    id: string;
+    url: string;
+    title: string | null;
+    description: string | null;
+    summary: string | null;
+    thumbnail: string | null;
+    creator: string | null;
+    priority: number;
+    isFavorite: boolean;
+    isImportant: boolean;
+    isWatchLater: boolean;
+    aiSummary: string | null;
+    aiKeywords: string[];
+    difficulty: string | null;
+    estimatedTime: number | null;
+    keyTakeaways: string[];
+    actionItems: string[];
+    technologies: string[];
+    frameworks: string[];
+    tools: string[];
+    confidenceScore: number | null;
+    createdAt: Date;
+    updatedAt: Date;
+    userId: string;
+    categoryId: string | null;
+}>;
+export declare const generateAndSaveEmbedding: (reelId: string, textToEmbed: string) => Promise<void>;

@@ -1,75 +1,38 @@
-import { Request, Response, NextFunction } from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../middlewares/auth.middleware';
 
-const generateToken = (id: string) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
-    expiresIn: '30d',
-  });
-};
-
-export const register = async (req: Request, res: Response, next: NextFunction) => {
+export const syncUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { email, password, name } = req.body;
-    
-    const userExists = await prisma.user.findUnique({ where: { email } });
-    if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Not authorized' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        password: hashedPassword 
+    const { id, email } = req.user;
+
+    // Upsert the user into our Prisma database
+    // This ensures that even if they just signed up via Google OAuth on the frontend,
+    // they will now exist in our relational database for foreign key constraints.
+    const user = await prisma.user.upsert({
+      where: { id },
+      update: {
+        // Only update fields that might change and we trust from the JWT, 
+        // or just keep it simple and update nothing if they exist.
+        // If we want to sync email changes from Supabase, we can do it here.
+        ...(email && { email }),
       },
-    });
-
-    res.status(201).json({
-      _id: user.id,
-      name: user.name,
-      email: user.email,
-      token: generateToken(user.id),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const login = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { email, password } = req.body;
-    
-    const user = await prisma.user.findUnique({ where: { email } });
-    
-    // In a real app we'd verify password.
-    if (user && (await bcrypt.compare(password, user.password))) {
-      res.json({
-        _id: user.id,
-        name: user.name,
-        email: user.email,
-        token: generateToken(user.id),
-      });
-    } else {
-      res.status(401).json({ message: 'Invalid email or password' });
-    }
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getMe = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user?.id },
+      create: {
+        id,
+        email: email || '', // Supabase might not guarantee email depending on provider, but usually does
+        name: email ? email.split('@')[0] : 'User', // Fallback name
+        password: '', // We don't store passwords anymore, Supabase handles it
+      },
       select: { id: true, name: true, email: true, avatar: true }
     });
+
     res.json(user);
   } catch (error) {
+    console.error("Sync User Error:", error);
     next(error);
   }
 };
