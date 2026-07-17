@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  reels       Reel[]
+  collections Collection[]
+}
+
+model Reel {
+  id              String   @id @default(uuid())
+  url             String
+  title           String?
+  description     String?
+  summary         String?
+  thumbnail       String?
+  creator         String?
+  priority        Int      @default(0) // 0: Normal, 1: High
+  isFavorite      Boolean  @default(false)
+  isImportant     Boolean  @default(false)
+  isWatchLater    Boolean  @default(false)
+  
+  // AI Generated fields
+  aiSummary       String?
+  aiKeywords      String[]
+  difficulty      String?
+  estimatedTime   Int?     // in minutes
+  keyTakeaways    String[]
+  actionItems     String[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+  
+  collections     ReelCollection[]
+  tags            ReelTag[]
+  notes           Note[]
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  
+  reels     Reel[]
+}
+
+model Collection {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  reels     ReelCollection[]
+}
+
+model ReelCollection {
+  reelId       String
+  collectionId String
+  reel         Reel       @relation(fields: [reelId], references: [id])
+  collection   Collection @relation(fields: [collectionId], references: [id])
+
+  @@id([reelId, collectionId])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String?
+  
+  reels     ReelTag[]
+}
+
+model ReelTag {
+  reelId String
+  tagId  String
+  reel   Reel @relation(fields: [reelId], references: [id])
+  tag    Tag  @relation(fields: [tagId], references: [id])
+
+  @@id([reelId, tagId])
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  content   String
+  reelId    String
+  reel      Reel     @relation(fields: [reelId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
