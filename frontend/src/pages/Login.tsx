@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Globe, ArrowRight, PlaySquare } from 'lucide-react';
+import { Mail, Lock, Globe, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -62,9 +62,7 @@ export const Login = () => {
         <div className="absolute -left-1/4 -top-1/4 w-1/2 h-1/2 bg-blue-500/10 blur-[120px] rounded-full"></div>
         
         <div className="relative z-10 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <PlaySquare className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="ReelVault Logo" className="w-10 h-10 object-contain drop-shadow-xl" />
           <span className="text-xl font-bold tracking-tight text-white">ReelVault AI</span>
         </div>
 

@@ -21,7 +21,8 @@ export const TopNav: React.FC = () => {
     <>
       <header className="h-16 border-b border-white/5 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-4 md:px-8">
         {/* Logo (Mobile only) */}
-        <div className="md:hidden pl-12">
+        <div className="md:hidden flex items-center gap-2">
+          <img src="/logo.png" alt="ReelVault Logo" className="w-6 h-6 object-contain" />
           <h1 className="text-xl font-bold text-white tracking-tight">ReelVault</h1>
         </div>
 

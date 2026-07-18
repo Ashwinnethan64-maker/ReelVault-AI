@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, Compass, Bookmark, Clock, Tag, Settings, Sparkles, LogOut, Menu, X } from 'lucide-react';
+import { Home, Compass, Bookmark, Clock, Tag, Settings, LogOut, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,9 +20,7 @@ const SidebarContent = ({ onClose }: { onClose?: () => void }) => {
     <div className="flex flex-col h-full">
       <div className="p-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
+          <img src="/logo.png" alt="ReelVault Logo" className="w-8 h-8 object-contain" />
           <h1 className="text-xl font-bold tracking-tight text-white">ReelVault</h1>
         </div>
         {onClose && (
