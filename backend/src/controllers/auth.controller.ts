@@ -36,3 +36,24 @@ export const syncUser = async (req: AuthRequest, res: Response, next: NextFuncti
     next(error);
   }
 };
+
+export const updateProfile = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    const { name, avatar } = req.body;
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(avatar !== undefined && { avatar }),
+      },
+      select: { id: true, name: true, email: true, avatar: true }
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error("Update Profile Error:", error);
+    next(error);
+  }
+};

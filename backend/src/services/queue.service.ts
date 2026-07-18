@@ -52,6 +52,10 @@ export const processNextJob = async () => {
 export const startBackgroundWorker = () => {
   console.log("Starting background job worker...");
   setInterval(async () => {
-    await processNextJob();
+    try {
+      await processNextJob();
+    } catch (err) {
+      console.error("Queue worker cycle failed:", err);
+    }
   }, 5000);
 };

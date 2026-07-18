@@ -5,4 +5,6 @@ export interface AuthRequest extends Request {
         email?: string;
     };
 }
-export declare const protect: (req: AuthRequest, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const protect: (req: AuthRequest & {
+    reqId?: string;
+}, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;

@@ -53,7 +53,12 @@ exports.processNextJob = processNextJob;
 const startBackgroundWorker = () => {
     console.log("Starting background job worker...");
     setInterval(async () => {
-        await (0, exports.processNextJob)();
+        try {
+            await (0, exports.processNextJob)();
+        }
+        catch (err) {
+            console.error("Queue worker cycle failed:", err);
+        }
     }, 5000);
 };
 exports.startBackgroundWorker = startBackgroundWorker;

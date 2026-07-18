@@ -4,22 +4,32 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateAndSaveEmbedding = exports.processReelMetadata = void 0;
-const openai_service_1 = require("./openai.service");
+const gemini_service_1 = require("./gemini.service");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const prompts_1 = require("../prompts");
 const processReelMetadata = async (reelId, content) => {
     const startTime = Date.now();
     const prompt = (0, prompts_1.getPrompt)('metadata', { content });
     try {
-        const response = await openai_service_1.openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                { role: "system", content: prompt }
-            ],
-            response_format: { type: "json_object" }
+        const response = await gemini_service_1.gemini.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+            }
         });
-        const output = response.choices[0].message.content || "{}";
+        const output = response.text || "{}";
         const parsed = JSON.parse(output);
+        // Find or create category if returned
+        let categoryId;
+        if (parsed.category) {
+            const category = await prisma_1.default.category.upsert({
+                where: { name: parsed.category.trim() },
+                create: { name: parsed.category.trim() },
+                update: {},
+            });
+            categoryId = category.id;
+        }
         // Save extracted metadata back to the reel
         const updatedReel = await prisma_1.default.reel.update({
             where: { id: reelId },
@@ -32,12 +42,50 @@ const processReelMetadata = async (reelId, content) => {
                 technologies: parsed.technologies || [],
                 frameworks: parsed.frameworks || [],
                 tools: parsed.tools || [],
+                topics: parsed.topics || [],
+                learningPoints: parsed.learningPoints || [],
+                importantQuotes: parsed.importantQuotes || [],
+                sentiment: parsed.sentiment,
+                aiKeywords: parsed.searchKeywords || [],
                 confidenceScore: parsed.confidenceScore,
+                ...(categoryId && { categoryId }),
             }
         });
+        // Create and connect tags if returned
+        if (parsed.tags && Array.isArray(parsed.tags)) {
+            for (const tagName of parsed.tags) {
+                const cleanedName = tagName.trim().toLowerCase();
+                if (cleanedName) {
+                    const tag = await prisma_1.default.tag.upsert({
+                        where: { name: cleanedName },
+                        create: { name: cleanedName, color: '#818cf8' },
+                        update: {},
+                    });
+                    await prisma_1.default.reelTag.upsert({
+                        where: {
+                            reelId_tagId: {
+                                reelId,
+                                tagId: tag.id
+                            }
+                        },
+                        create: {
+                            reelId,
+                            tagId: tag.id
+                        },
+                        update: {}
+                    });
+                }
+            }
+        }
         // Also generate and save the embedding for semantic search
-        await (0, exports.generateAndSaveEmbedding)(reelId, parsed.summary + " " + parsed.keyTakeaways.join(" "));
-        await (0, prompts_1.logPrompt)(updatedReel.userId, 'REEL_METADATA_PROMPT', 'v1', content, output, response.usage?.total_tokens || 0, Date.now() - startTime);
+        try {
+            await (0, exports.generateAndSaveEmbedding)(reelId, (parsed.summary || "") + " " + (parsed.keyTakeaways || []).join(" "));
+        }
+        catch (embErr) {
+            console.error("Embedding generation failed, skipping but continuing:", embErr);
+        }
+        await (0, prompts_1.logPrompt)(updatedReel.userId, 'REEL_METADATA_PROMPT', 'v1', content, output, 0, // tokens used
+        Date.now() - startTime);
         return updatedReel;
     }
     catch (error) {
@@ -47,12 +95,6 @@ const processReelMetadata = async (reelId, content) => {
 };
 exports.processReelMetadata = processReelMetadata;
 const generateAndSaveEmbedding = async (reelId, textToEmbed) => {
-    const embeddingResponse = await openai_service_1.openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: textToEmbed,
-    });
-    const vector = embeddingResponse.data[0].embedding;
-    // Use a raw query to update the pgvector field since Prisma raw fields require special casting
-    await prisma_1.default.$executeRawUnsafe(`UPDATE "Reel" SET "embedding" = $1::vector WHERE "id" = $2`, JSON.stringify(vector), reelId);
+    console.log("Embedding generation is pending Gemini support. Skipping for now.");
 };
 exports.generateAndSaveEmbedding = generateAndSaveEmbedding;

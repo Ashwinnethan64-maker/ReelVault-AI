@@ -21,6 +21,10 @@ model User {
   reels        Reel[]
   collections  Collection[]
   chatSessions ChatSession[]
+  activities   Activity[]
+  notifications Notification[]
+  settings     Settings?
+  analytics    Analytics?
 }
 
 model Reel {
@@ -46,13 +50,18 @@ model Reel {
   technologies    String[]
   frameworks      String[]
   tools           String[]
+  topics          String[]
+  learningPoints  String[]
+  importantQuotes String[]
+  sentiment       String?
   confidenceScore Float?
 
   // Vector Embeddings
   embedding Unsupported("vector(1536)")?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
@@ -63,6 +72,7 @@ model Reel {
   collections ReelCollection[]
   tags        ReelTag[]
   notes       Note[]
+  activities  Activity[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([categoryId])
@@ -91,8 +101,8 @@ model Collection {
 model ReelCollection {
   reelId       String
   collectionId String
-  reel         Reel       @relation(fields: [reelId], references: [id])
-  collection   Collection @relation(fields: [collectionId], references: [id])
+  reel         Reel       @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
   @@id([reelId, collectionId])
 }
@@ -108,8 +118,8 @@ model Tag {
 model ReelTag {
   reelId String
   tagId  String
-  reel   Reel   @relation(fields: [reelId], references: [id])
-  tag    Tag    @relation(fields: [tagId], references: [id])
+  reel   Reel   @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([reelId, tagId])
 }
@@ -118,7 +128,7 @@ model Note {
   id        String   @id @default(uuid())
   content   String
   reelId    String
-  reel      Reel     @relation(fields: [reelId], references: [id])
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -136,7 +146,7 @@ model ChatSession {
 model ChatMessage {
   id        String      @id @default(uuid())
   sessionId String
-  session   ChatSession @relation(fields: [sessionId], references: [id])
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   role      String // 'user' | 'assistant'
   content   String
   sources   String[] // Reel IDs referenced
@@ -168,4 +178,52 @@ model JobQueue {
   error     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // e.g., 'ADDED_REEL', 'VIEWED_REEL', 'AI_SUMMARY_GENERATED'
+  details   String?  // JSON string or description
+  reelId    String?
+  reel      Reel?    @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  type      String   // e.g., 'SYSTEM', 'AI_COMPLETE'
+  link      String?  // Optional URL to navigate to
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+}
+
+model Settings {
+  id                String  @id @default(uuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme             String  @default("dark")
+  emailNotifications Boolean @default(true)
+  autoTagging       Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Analytics {
+  id             String  @id @default(uuid())
+  userId         String  @unique
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalReels     Int     @default(0)
+  totalWatchTime Int     @default(0)
+  aiTokensUsed   Int     @default(0)
+  lastUpdated    DateTime @default(now())
 }

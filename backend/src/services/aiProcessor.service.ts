@@ -1,4 +1,4 @@
-import { openai } from './openai.service';
+import { gemini } from './gemini.service';
 import prisma from '../lib/prisma';
 import { getPrompt, logPrompt } from '../prompts';
 
@@ -7,16 +7,27 @@ export const processReelMetadata = async (reelId: string, content: string) => {
   const prompt = getPrompt('metadata', { content });
   
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: prompt }
-      ],
-      response_format: { type: "json_object" }
+    const response = await gemini.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      }
     });
 
-    const output = response.choices[0].message.content || "{}";
+    const output = response.text || "{}";
     const parsed = JSON.parse(output);
+
+    // Find or create category if returned
+    let categoryId: string | undefined;
+    if (parsed.category) {
+      const category = await prisma.category.upsert({
+        where: { name: parsed.category.trim() },
+        create: { name: parsed.category.trim() },
+        update: {},
+      });
+      categoryId = category.id;
+    }
 
     // Save extracted metadata back to the reel
     const updatedReel = await prisma.reel.update({
@@ -30,12 +41,50 @@ export const processReelMetadata = async (reelId: string, content: string) => {
         technologies: parsed.technologies || [],
         frameworks: parsed.frameworks || [],
         tools: parsed.tools || [],
+        topics: parsed.topics || [],
+        learningPoints: parsed.learningPoints || [],
+        importantQuotes: parsed.importantQuotes || [],
+        sentiment: parsed.sentiment,
+        aiKeywords: parsed.searchKeywords || [],
         confidenceScore: parsed.confidenceScore,
+        ...(categoryId && { categoryId }),
       }
     });
 
+    // Create and connect tags if returned
+    if (parsed.tags && Array.isArray(parsed.tags)) {
+      for (const tagName of parsed.tags) {
+        const cleanedName = tagName.trim().toLowerCase();
+        if (cleanedName) {
+          const tag = await prisma.tag.upsert({
+            where: { name: cleanedName },
+            create: { name: cleanedName, color: '#818cf8' },
+            update: {},
+          });
+
+          await prisma.reelTag.upsert({
+            where: {
+              reelId_tagId: {
+                reelId,
+                tagId: tag.id
+              }
+            },
+            create: {
+              reelId,
+              tagId: tag.id
+            },
+            update: {}
+          });
+        }
+      }
+    }
+
     // Also generate and save the embedding for semantic search
-    await generateAndSaveEmbedding(reelId, parsed.summary + " " + parsed.keyTakeaways.join(" "));
+    try {
+      await generateAndSaveEmbedding(reelId, (parsed.summary || "") + " " + (parsed.keyTakeaways || []).join(" "));
+    } catch (embErr) {
+      console.error("Embedding generation failed, skipping but continuing:", embErr);
+    }
 
     await logPrompt(
       updatedReel.userId, 
@@ -43,7 +92,7 @@ export const processReelMetadata = async (reelId: string, content: string) => {
       'v1', 
       content, 
       output, 
-      response.usage?.total_tokens || 0, 
+      0, // tokens used
       Date.now() - startTime
     );
 
@@ -55,18 +104,6 @@ export const processReelMetadata = async (reelId: string, content: string) => {
 };
 
 export const generateAndSaveEmbedding = async (reelId: string, textToEmbed: string) => {
-  const embeddingResponse = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: textToEmbed,
-  });
-  
-  const vector = embeddingResponse.data[0].embedding;
-  
-  // Use a raw query to update the pgvector field since Prisma raw fields require special casting
-  await prisma.$executeRawUnsafe(
-    `UPDATE "Reel" SET "embedding" = $1::vector WHERE "id" = $2`,
-    JSON.stringify(vector),
-    reelId
-  );
+  console.log("Embedding generation is pending Gemini support. Skipping for now.");
 };
 

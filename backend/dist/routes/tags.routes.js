@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const tags_controller_1 = require("../controllers/tags.controller");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.protect);
+router.route('/').get(tags_controller_1.getTags).post(tags_controller_1.createTag);
+router.post('/merge', tags_controller_1.mergeTags);
+router.route('/:id').put(tags_controller_1.updateTag).delete(tags_controller_1.deleteTag);
+exports.default = router;

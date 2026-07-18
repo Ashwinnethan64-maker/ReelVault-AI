@@ -8,8 +8,9 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const protect = async (req: AuthRequest & { reqId?: string }, res: Response, next: NextFunction) => {
   let token;
+  const reqId = req.reqId || 'UNKNOWN_REQ';
 
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
@@ -20,7 +21,7 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
       const { data: { user }, error } = await supabase.auth.getUser(token);
 
       if (error || !user) {
-        console.error("Supabase JWT Verification Error:", error);
+        console.error(`[REQ ${reqId}] Supabase JWT Verification Error:`, error?.message || 'User null');
         return res.status(401).json({ message: 'Not authorized, token failed' });
       }
 
@@ -31,12 +32,14 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
 
       next();
     } catch (error) {
-      console.error("Auth Middleware Error:", error);
+      console.error(`[REQ ${reqId}] Auth Middleware Exception:`, error);
       res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }
 
   if (!token) {
+    console.error(`[REQ ${reqId}] Auth Middleware: No token provided in headers`);
     res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
+

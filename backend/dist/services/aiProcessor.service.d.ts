@@ -19,9 +19,14 @@ export declare const processReelMetadata: (reelId: string, content: string) => P
     technologies: string[];
     frameworks: string[];
     tools: string[];
+    topics: string[];
+    learningPoints: string[];
+    importantQuotes: string[];
+    sentiment: string | null;
     confidenceScore: number | null;
     createdAt: Date;
     updatedAt: Date;
+    deletedAt: Date | null;
     userId: string;
     categoryId: string | null;
 }>;

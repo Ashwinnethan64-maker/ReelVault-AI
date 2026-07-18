@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncUser = void 0;
+exports.updateProfile = exports.syncUser = void 0;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const syncUser = async (req, res, next) => {
     try {
@@ -38,3 +38,23 @@ const syncUser = async (req, res, next) => {
     }
 };
 exports.syncUser = syncUser;
+const updateProfile = async (req, res, next) => {
+    try {
+        const userId = req.user?.id;
+        const { name, avatar } = req.body;
+        const user = await prisma_1.default.user.update({
+            where: { id: userId },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(avatar !== undefined && { avatar }),
+            },
+            select: { id: true, name: true, email: true, avatar: true }
+        });
+        res.json(user);
+    }
+    catch (error) {
+        console.error("Update Profile Error:", error);
+        next(error);
+    }
+};
+exports.updateProfile = updateProfile;

@@ -14,6 +14,11 @@ Respond strictly in JSON format matching this schema:
   "tools": ["VS Code", "Figma"],
   "tags": ["tag1", "tag2", "tag3"],
   "category": "Suggested Category Name",
+  "topics": ["topic 1", "topic 2"],
+  "learningPoints": ["point 1", "point 2"],
+  "importantQuotes": ["quote 1", "quote 2"],
+  "sentiment": "Positive",
+  "searchKeywords": ["keyword1", "keyword2"],
   "confidenceScore": 0.95
 }
 

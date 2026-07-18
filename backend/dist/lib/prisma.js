@@ -6,4 +6,5 @@ const client_1 = require("@prisma/client");
 const pool = new pg_1.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new adapter_pg_1.PrismaPg(pool);
 const prisma = new client_1.PrismaClient({ adapter });
+// Re-exporting prisma client to trigger TS server reload
 exports.default = prisma;

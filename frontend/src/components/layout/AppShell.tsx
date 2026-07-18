@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopNav } from './TopNav';
 import { MobileNav } from './MobileNav';
+import { AIAssistant } from '../ui/AIAssistant';
 
 export const AppShell = () => {
   const location = useLocation();
@@ -41,6 +42,9 @@ export const AppShell = () => {
         <div className="md:hidden border-t border-white/5 bg-zinc-950/80 backdrop-blur-xl z-50 relative">
           <MobileNav />
         </div>
+
+        {/* Global Floating AI Assistant */}
+        <AIAssistant />
       </div>
     </div>
   );

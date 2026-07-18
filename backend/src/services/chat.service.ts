@@ -1,4 +1,4 @@
-import { openai } from './openai.service';
+import { gemini } from './gemini.service';
 import prisma from '../lib/prisma';
 import { getPrompt, logPrompt } from '../prompts';
 import { semanticSearch } from './search.service';
@@ -37,22 +37,24 @@ export const chatWithVault = async (userId: string, sessionId: string, message: 
   });
 
   const chatHistory = session.messages.map(m => ({
-    role: m.role as "user" | "assistant",
-    content: m.content
+    role: m.role === 'user' ? 'user' : 'model',
+    parts: [{ text: m.content }]
   }));
 
   // 4. Generate AI response
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
+    const response = await gemini.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
         ...chatHistory,
-        { role: "user", content: message }
+        { role: 'user', parts: [{ text: message }] }
       ],
+      config: {
+        systemInstruction: systemPrompt,
+      }
     });
 
-    const output = response.choices[0].message.content || "";
+    const output = response.text || "";
     
     // 5. Save assistant message
     const sourceIds = searchResults.map((r: any) => r.id);
@@ -72,7 +74,7 @@ export const chatWithVault = async (userId: string, sessionId: string, message: 
       'v1', 
       message, 
       output, 
-      response.usage?.total_tokens || 0, 
+      0, 
       Date.now() - startTime
     );
 

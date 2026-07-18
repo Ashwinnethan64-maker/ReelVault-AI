@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.chatWithVault = void 0;
-const openai_service_1 = require("./openai.service");
+const gemini_service_1 = require("./gemini.service");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const prompts_1 = require("../prompts");
 const search_service_1 = require("./search.service");
@@ -34,20 +34,22 @@ const chatWithVault = async (userId, sessionId, message) => {
         }
     });
     const chatHistory = session.messages.map(m => ({
-        role: m.role,
-        content: m.content
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content }]
     }));
     // 4. Generate AI response
     try {
-        const response = await openai_service_1.openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-                { role: "system", content: systemPrompt },
+        const response = await gemini_service_1.gemini.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [
                 ...chatHistory,
-                { role: "user", content: message }
+                { role: 'user', parts: [{ text: message }] }
             ],
+            config: {
+                systemInstruction: systemPrompt,
+            }
         });
-        const output = response.choices[0].message.content || "";
+        const output = response.text || "";
         // 5. Save assistant message
         const sourceIds = searchResults.map((r) => r.id);
         await prisma_1.default.chatMessage.create({
@@ -59,7 +61,7 @@ const chatWithVault = async (userId, sessionId, message) => {
             }
         });
         // Log prompt usage
-        await (0, prompts_1.logPrompt)(userId, 'AI_CHAT_SYSTEM_PROMPT', 'v1', message, output, response.usage?.total_tokens || 0, Date.now() - startTime);
+        await (0, prompts_1.logPrompt)(userId, 'AI_CHAT_SYSTEM_PROMPT', 'v1', message, output, 0, Date.now() - startTime);
         return { reply: output, sources: searchResults };
     }
     catch (error) {
