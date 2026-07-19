@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Mail, Lock, Globe, ArrowRight } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -41,9 +42,10 @@ export const Register = () => {
       // Otherwise, we might need to tell them to check email.
       // Let's assume it redirects directly.
       navigate('/');
-    } catch (err: any) {
-      console.error('Registration failed', err);
-      setError(err.message || 'Registration failed. Email might already exist.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to register';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -58,9 +60,10 @@ export const Register = () => {
         },
       });
       if (error) throw error;
-    } catch (err: any) {
-      console.error('Google login failed', err);
-      setError(err.message || 'Google authentication failed');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to authenticate with Google';
+      setError(msg);
+      toast.error(msg);
     }
   };
 

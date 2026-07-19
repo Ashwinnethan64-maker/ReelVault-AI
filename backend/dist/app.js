@@ -17,6 +17,12 @@ const collections_routes_1 = __importDefault(require("./routes/collections.route
 const tags_routes_1 = __importDefault(require("./routes/tags.routes"));
 const chat_routes_1 = __importDefault(require("./routes/chat.routes"));
 const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
+const notes_routes_1 = __importDefault(require("./routes/notes.routes"));
+const study_routes_1 = __importDefault(require("./routes/study.routes"));
+const timeline_routes_1 = __importDefault(require("./routes/timeline.routes"));
+const analytics_routes_1 = __importDefault(require("./routes/analytics.routes"));
+const export_routes_1 = __importDefault(require("./routes/export.routes"));
+const graph_routes_1 = __importDefault(require("./routes/graph.routes"));
 const app = (0, express_1.default)();
 // Security Middlewares
 app.use((0, helmet_1.default)());
@@ -65,6 +71,12 @@ app.use('/api/collections', collections_routes_1.default);
 app.use('/api/tags', tags_routes_1.default);
 app.use('/api/chat', chat_routes_1.default);
 app.use('/api/dashboard', dashboard_routes_1.default);
+app.use('/api/notes', notes_routes_1.default);
+app.use('/api/study', study_routes_1.default);
+app.use('/api/timeline', timeline_routes_1.default);
+app.use('/api/analytics', analytics_routes_1.default);
+app.use('/api/export', export_routes_1.default);
+app.use('/api/graph', graph_routes_1.default);
 // Global Error Handler
 app.use(errorHandler_1.errorHandler);
 exports.default = app;

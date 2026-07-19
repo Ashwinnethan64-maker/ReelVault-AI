@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Globe, ArrowRight } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -31,9 +32,10 @@ export const Login = () => {
       });
       if (authError) throw authError;
       navigate('/');
-    } catch (err: any) {
-      console.error('Login failed', err);
-      setError(err.message || 'Invalid email or password');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to sign in';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -48,9 +50,9 @@ export const Login = () => {
         },
       });
       if (error) throw error;
-    } catch (err: any) {
-      console.error('Google login failed', err);
-      setError(err.message || 'Google authentication failed');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to authenticate with Google';
+      toast.error(msg);
     }
   };
 

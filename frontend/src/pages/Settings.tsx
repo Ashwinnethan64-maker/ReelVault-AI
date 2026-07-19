@@ -42,6 +42,23 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const handleExport = async (format: 'json' | 'csv' | 'markdown') => {
+    try {
+      const res = await api.get(`/export?format=${format}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const ext = format === 'markdown' ? 'md' : format;
+      link.setAttribute('download', `vault-export.${ext}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      toast.success(`Exported ${format.toUpperCase()} successfully!`);
+    } catch (err) {
+      toast.error('Export failed');
+    }
+  };
+
   return (
     <div className="min-h-full">
       <div className="px-6 py-6 border-b border-white/5">
@@ -251,17 +268,18 @@ export const Settings: React.FC = () => {
                 <p className="text-zinc-400 text-sm mt-0.5">Irreversible actions. Proceed with caution.</p>
               </div>
               <div className="space-y-3">
-                <div className="flex items-start justify-between p-4 rounded-2xl border border-rose-500/20 bg-rose-950/10">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Export All Data</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">Download a JSON export of all your reels, tags, and collections.</p>
+                <div className="flex flex-col gap-2 p-4 rounded-2xl border border-rose-500/20 bg-rose-950/10">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-white">Export Vault Data</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Download an export of all your reels, tags, and collections.</p>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => toast.info('Data export coming soon.')}
-                    className="ml-4 shrink-0 px-4 py-1.5 rounded-lg text-sm font-medium border border-white/10 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
-                  >
-                    Export
-                  </button>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => handleExport('json')} className="px-3 py-1.5 rounded text-xs font-medium border border-white/10 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">JSON</button>
+                    <button onClick={() => handleExport('csv')} className="px-3 py-1.5 rounded text-xs font-medium border border-white/10 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">CSV</button>
+                    <button onClick={() => handleExport('markdown')} className="px-3 py-1.5 rounded text-xs font-medium border border-white/10 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">Markdown</button>
+                  </div>
                 </div>
                 <div className="flex items-start justify-between p-4 rounded-2xl border border-rose-500/20 bg-rose-950/10">
                   <div>

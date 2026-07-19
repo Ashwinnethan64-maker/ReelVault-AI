@@ -7,7 +7,13 @@ exports.logPrompt = exports.getPrompt = void 0;
 const templates_1 = require("./templates");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const getPrompt = (templateName, variables) => {
-    let template = templateName === 'metadata' ? templates_1.REEL_METADATA_PROMPT : templates_1.AI_CHAT_SYSTEM_PROMPT;
+    let template = templates_1.REEL_METADATA_PROMPT;
+    if (templateName === 'chat')
+        template = templates_1.AI_CHAT_SYSTEM_PROMPT;
+    if (templateName === 'flashcard')
+        template = templates_1.FLASHCARD_PROMPT;
+    if (templateName === 'quiz')
+        template = templates_1.QUIZ_PROMPT;
     for (const [key, value] of Object.entries(variables)) {
         template = template.replace(new RegExp(`{{${key}}}`, 'g'), value);
     }

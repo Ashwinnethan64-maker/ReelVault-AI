@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "ReelVault Clipper",
+  "version": "1.0",
+  "description": "Save videos directly to your ReelVault Knowledge Base.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:5000/*",
+    "https://*.instagram.com/*",
+    "https://*.youtube.com/*",
+    "https://*.tiktok.com/*",
+    "https://*.twitter.com/*",
+    "https://*.x.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Save to ReelVault"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

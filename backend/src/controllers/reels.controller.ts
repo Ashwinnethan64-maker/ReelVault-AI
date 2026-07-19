@@ -3,6 +3,7 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import prisma from '../lib/prisma';
 import { enqueueJob } from '../services/queue.service';
 import { logActivity } from '../utils/activity';
+import { semanticSearch } from '../services/search.service';
 
 export const getReels = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -50,18 +51,38 @@ export const getReels = async (req: AuthRequest, res: Response, next: NextFuncti
       };
     }
 
+    let semanticIds: string[] = [];
     if (search) {
       const searchStr = search as string;
-      where.OR = [
-        { title: { contains: searchStr, mode: 'insensitive' } },
-        { description: { contains: searchStr, mode: 'insensitive' } },
-        { creator: { contains: searchStr, mode: 'insensitive' } },
-        { aiSummary: { contains: searchStr, mode: 'insensitive' } },
-        { url: { contains: searchStr, mode: 'insensitive' } },
-        { keyTakeaways: { hasSome: [searchStr] } },
-        { topics: { hasSome: [searchStr] } },
-        { learningPoints: { hasSome: [searchStr] } }
-      ];
+      try {
+        const semanticResults: any = await semanticSearch(userId as string, searchStr, 50);
+        if (semanticResults && semanticResults.length > 0) {
+          semanticIds = semanticResults.map((r: any) => r.id);
+          where.id = { in: semanticIds };
+        } else {
+          where.OR = [
+            { title: { contains: searchStr, mode: 'insensitive' } },
+            { description: { contains: searchStr, mode: 'insensitive' } },
+            { creator: { contains: searchStr, mode: 'insensitive' } },
+            { aiSummary: { contains: searchStr, mode: 'insensitive' } },
+            { url: { contains: searchStr, mode: 'insensitive' } },
+            { keyTakeaways: { hasSome: [searchStr] } },
+            { topics: { hasSome: [searchStr] } },
+            { learningPoints: { hasSome: [searchStr] } }
+          ];
+        }
+      } catch (err) {
+        where.OR = [
+          { title: { contains: searchStr, mode: 'insensitive' } },
+          { description: { contains: searchStr, mode: 'insensitive' } },
+          { creator: { contains: searchStr, mode: 'insensitive' } },
+          { aiSummary: { contains: searchStr, mode: 'insensitive' } },
+          { url: { contains: searchStr, mode: 'insensitive' } },
+          { keyTakeaways: { hasSome: [searchStr] } },
+          { topics: { hasSome: [searchStr] } },
+          { learningPoints: { hasSome: [searchStr] } }
+        ];
+      }
     }
 
     // Sorting
@@ -93,6 +114,14 @@ export const getReels = async (req: AuthRequest, res: Response, next: NextFuncti
         }
       }
     });
+
+    if (search && semanticIds.length > 0) {
+      reels.sort((a, b) => {
+        const indexA = semanticIds.indexOf(a.id);
+        const indexB = semanticIds.indexOf(b.id);
+        return indexA - indexB;
+      });
+    }
 
     const total = await prisma.reel.count({ where });
 
@@ -149,26 +178,42 @@ export const createReel = async (req: AuthRequest & { reqId?: string }, res: Res
 
     if (!url) {
       console.warn(`[REQ ${reqId}] createReel validation failed: Missing URL`);
-      return res.status(400).json({ message: 'Instagram URL is required' });
+      return res.status(400).json({ message: 'URL is required' });
     }
 
-    // Extract basic information from URL or mock it realistically
-    const urlPattern = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/i;
-    const match = url.match(urlPattern);
-    
-    if (!match) {
+    const igPattern = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/i;
+    const ytPattern = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/)([A-Za-z0-9_-]+)/i;
+    const tiktokPattern = /(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@[\w.-]+\/video\/(\d+)/i;
+    const xPattern = /(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/\w+\/status\/(\d+)/i;
+
+    let reelCode = '';
+    let normalizedUrl = url;
+    let platform = 'Unknown';
+
+    if (igPattern.test(url)) {
+      reelCode = url.match(igPattern)![1];
+      normalizedUrl = `https://www.instagram.com/reel/${reelCode}/`;
+      platform = 'Instagram';
+    } else if (ytPattern.test(url)) {
+      reelCode = url.match(ytPattern)![1];
+      normalizedUrl = `https://www.youtube.com/watch?v=${reelCode}`;
+      platform = 'YouTube';
+    } else if (tiktokPattern.test(url)) {
+      reelCode = url.match(tiktokPattern)![1];
+      normalizedUrl = url;
+      platform = 'TikTok';
+    } else if (xPattern.test(url)) {
+      reelCode = url.match(xPattern)![1];
+      normalizedUrl = url;
+      platform = 'X';
+    } else {
       console.warn(`[REQ ${reqId}] createReel validation failed: Invalid URL ${url}`);
-      return res.status(422).json({ message: 'Invalid Instagram URL format. Must be an Instagram Reel or Post.' });
+      return res.status(422).json({ message: 'Invalid URL format. Must be an Instagram, YouTube, TikTok, or X video.' });
     }
 
-    const reelCode = match[1];
-    
-    // Normalize URL to remove tracking parameters
-    const normalizedUrl = `https://www.instagram.com/reel/${reelCode}/`;
-
-    // Mock initial metadata scraping before AI background worker extracts richer insights
-    const mockCreator = `creator_${reelCode.substring(0, 4).toLowerCase()}`;
-    const mockTitle = title || `Instagram Reel by @${mockCreator}`;
+    // Mock initial metadata scraping
+    const mockCreator = `${platform.toLowerCase()}_creator_${reelCode.substring(0, 4).toLowerCase()}`;
+    const mockTitle = title || `${platform} Video by @${mockCreator}`;
     const mockDescription = description || `Interesting educational reel containing details on code development, architectural patterns, and engineering. Reel ID: ${reelCode}`;
     const mockThumbnail = `https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=500&auto=format&fit=crop&q=60`;
 

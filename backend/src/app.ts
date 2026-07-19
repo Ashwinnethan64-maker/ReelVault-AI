@@ -14,6 +14,12 @@ import collectionRoutes from './routes/collections.routes';
 import tagRoutes from './routes/tags.routes';
 import chatRoutes from './routes/chat.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import notesRoutes from './routes/notes.routes';
+import studyRoutes from './routes/study.routes';
+import timelineRoutes from './routes/timeline.routes';
+import analyticsRoutes from './routes/analytics.routes';
+import exportRoutes from './routes/export.routes';
+import graphRoutes from './routes/graph.routes';
 
 const app = express();
 
@@ -70,6 +76,12 @@ app.use('/api/collections', collectionRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/notes', notesRoutes);
+app.use('/api/study', studyRoutes);
+app.use('/api/timeline', timelineRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/graph', graphRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

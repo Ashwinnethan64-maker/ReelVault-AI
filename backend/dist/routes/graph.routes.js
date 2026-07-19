@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const graph_controller_1 = require("../controllers/graph.controller");
+const router = (0, express_1.Router)();
+router.get('/', auth_middleware_1.protect, graph_controller_1.getKnowledgeGraph);
+router.post('/sync', auth_middleware_1.protect, graph_controller_1.syncGraph);
+router.get('/search', auth_middleware_1.protect, graph_controller_1.searchGraph);
+router.post('/node/:id/chat', auth_middleware_1.protect, graph_controller_1.chatWithNode);
+exports.default = router;

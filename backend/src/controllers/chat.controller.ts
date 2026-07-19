@@ -2,6 +2,8 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import prisma from '../lib/prisma';
 import { gemini } from '../services/gemini.service';
+import { semanticSearch } from '../services/search.service';
+import { env } from '../config/env';
 import { getPrompt, logPrompt } from '../prompts';
 
 // Get or create a session, then chat with RAG
@@ -34,10 +36,10 @@ export const chatWithVault = async (req: AuthRequest & { reqId?: string }, res: 
       data: { sessionId: session.id, role: 'user', content: lastMessage, sources: [] }
     });
 
-    // 3 & 4. Embeddings and pgvector search are pending Gemini integration
-    // Skip and fallback to text search only for now.
-
-    // 5. Text-based fallback search for reels
+    // 3. Perform semantic search (RAG)
+    const semanticResults = await semanticSearch(userId, lastMessage, 5) as Array<{ id: string, title: string | null, aiSummary: string | null, url: string, keyTakeaways?: string[] }>;
+    
+    // 4. Text-based fallback search for reels
     const textSearchResults = await prisma.reel.findMany({
       where: {
         userId,
@@ -51,8 +53,8 @@ export const chatWithVault = async (req: AuthRequest & { reqId?: string }, res: 
       select: { id: true, title: true, aiSummary: true, keyTakeaways: true, url: true }
     });
 
-    // 6. Merge results, deduplicate by id
-    const allResults = textSearchResults;
+    // Merge results, deduplicate by id
+    const allResults = [...semanticResults, ...textSearchResults].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i).slice(0, 5);
     const sourceReelIds = allResults.map(r => r.id);
 
     let contextStr = '';
@@ -76,7 +78,7 @@ export const chatWithVault = async (req: AuthRequest & { reqId?: string }, res: 
     }));
 
     const responseStream = await gemini.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-flash-latest',
       contents: geminiMessages,
       config: {
         systemInstruction: systemPrompt,
@@ -121,15 +123,18 @@ export const chatWithVault = async (req: AuthRequest & { reqId?: string }, res: 
     
     // If it's a streaming error after headers sent, we just end the stream
     if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ content: '\n\n⚠️ Connection to AI failed mid-stream.' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ content: '\n\n⚠️ Looks like something went wrong while processing that request. Let\'s try again.' })}\n\n`);
       res.write(`data: [DONE]\n\n`);
       return res.end();
     }
     
-    // Otherwise pass it to the global error handler
-    error.status = error.status || 500;
-    error.message = error.message || 'Failed to connect to AI service';
-    next(error);
+    // Send friendly error message immediately if headers aren't sent
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.write(`data: ${JSON.stringify({ content: '⚠️ Looks like something went wrong while processing that request. Let\'s try again.' })}\n\n`);
+    res.write(`data: [DONE]\n\n`);
+    res.end();
   }
 };
 

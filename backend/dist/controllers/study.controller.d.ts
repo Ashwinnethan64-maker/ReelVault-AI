@@ -1,0 +1,10 @@
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../middlewares/auth.middleware';
+export declare const getDashboardAnalytics: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const generateFlashcards: (req: AuthRequest, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const saveFlashcards: (req: AuthRequest, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const getDueFlashcards: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const reviewFlashcard: (req: AuthRequest, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const generateQuiz: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const submitQuiz: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const chatWithTutor: (req: AuthRequest, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>;

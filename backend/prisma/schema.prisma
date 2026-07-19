@@ -25,6 +25,10 @@ model User {
   notifications Notification[]
   settings     Settings?
   analytics    Analytics?
+  flashcards    Flashcard[]
+  quizzes       Quiz[]
+  graphNodes    GraphNode[]
+  studySessions StudySession[]
 }
 
 model Reel {
@@ -57,7 +61,7 @@ model Reel {
   confidenceScore Float?
 
   // Vector Embeddings
-  embedding Unsupported("vector(1536)")?
+  embedding Unsupported("vector(768)")?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -73,6 +77,7 @@ model Reel {
   tags        ReelTag[]
   notes       Note[]
   activities  Activity[]
+  flashcards  Flashcard[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([categoryId])
@@ -226,4 +231,89 @@ model Analytics {
   totalWatchTime Int     @default(0)
   aiTokensUsed   Int     @default(0)
   lastUpdated    DateTime @default(now())
+}
+
+model Flashcard {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reelId         String?
+  reel           Reel?    @relation(fields: [reelId], references: [id], onDelete: SetNull)
+  front          String
+  back           String
+  explanation    String?
+  topic          String?
+  difficulty     String?
+  tags           String[]
+  sourceUrl      String?
+  
+  // Spaced Repetition
+  nextReviewDate DateTime @default(now())
+  interval       Int      @default(0)
+  easeFactor     Float    @default(2.5)
+  repetitions    Int      @default(0)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, nextReviewDate])
+}
+
+model Quiz {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic         String?
+  score         Int?
+  total         Int?
+  questions     Json?
+  relatedReelId String?
+  createdAt     DateTime @default(now())
+}
+
+model StudySession {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  durationMin   Int      @default(0)
+  cardsReviewed Int      @default(0)
+  quizzesTaken  Int      @default(0)
+  focusTopic    String?
+  createdAt     DateTime @default(now())
+}
+
+model GraphNode {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   // 'reel', 'topic', 'technology', 'creator', 'collection', 'tag', 'skill'
+  name         String
+  summary      String?
+  size         Float    @default(1.0)
+  
+  reelId       String?
+  collectionId String?
+  
+  embedding Unsupported("vector(768)")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sourceEdges GraphEdge[] @relation("SourceEdges")
+  targetEdges GraphEdge[] @relation("TargetEdges")
+
+  @@unique([userId, type, name])
+  @@index([userId, type])
+}
+
+model GraphEdge {
+  id               String    @id @default(uuid())
+  sourceId         String
+  targetId         String
+  relationshipType String    // 'depends_on', 'explains', 'uses', 'part_of', 'similar_to', 'created_by'
+  
+  source GraphNode @relation("SourceEdges", fields: [sourceId], references: [id], onDelete: Cascade)
+  target GraphNode @relation("TargetEdges", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetId, relationshipType])
 }

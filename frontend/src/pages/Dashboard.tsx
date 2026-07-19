@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   TrendingUp, Clock, Star, Plus, ArrowRight, 
-  PlaySquare, Sparkles, Tag, FolderOpen
+  PlaySquare, Sparkles, Tag, FolderOpen, Brain
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,7 +29,15 @@ interface Stats {
   thisWeek: number;
 }
 
-const StatCard = ({ icon: Icon, label, value, gradient, delay }: any) => (
+interface StatCardProps {
+  icon: React.ElementType;
+  label: string;
+  value: string | number | undefined;
+  gradient: string;
+  delay: number;
+}
+
+const StatCard = ({ icon: Icon, label, value, gradient, delay }: StatCardProps) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -116,15 +124,20 @@ export const Dashboard: React.FC = () => {
   const [reels, setReels] = useState<Reel[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, favorites: 0, watchLater: 0, thisWeek: 0 });
   const [weeklyData, setWeeklyData] = useState<number[]>([0,0,0,0,0,0,0]);
+  const [analytics, setAnalytics] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchData = async () => {
     try {
-      const res = await api.get('/dashboard');
+      const [res, analyticsRes] = await Promise.all([
+        api.get('/dashboard'),
+        api.get('/analytics')
+      ]);
       setReels(res.data.recentReels || []);
       setStats(res.data.stats || { total: 0, favorites: 0, watchLater: 0, thisWeek: 0 });
       setWeeklyData(res.data.weeklyData || [0,0,0,0,0,0,0]);
+      setAnalytics(analyticsRes.data);
     } catch (err) {
       // silently fail – empty state will show
     } finally {
@@ -144,9 +157,9 @@ export const Dashboard: React.FC = () => {
 
   const statCards = [
     { icon: PlaySquare, label: 'Total Reels', value: stats.total, gradient: 'from-indigo-500 to-purple-600', delay: 0 },
-    { icon: Star, label: 'Favorites', value: stats.favorites, gradient: 'from-amber-500 to-orange-600', delay: 0.05 },
+    { icon: Brain, label: 'Knowledge Score', value: (analytics?.knowledgeScore as number) || 0, gradient: 'from-emerald-500 to-teal-600', delay: 0.05 },
     { icon: Clock, label: 'Watch Later', value: stats.watchLater, gradient: 'from-sky-500 to-blue-600', delay: 0.1 },
-    { icon: TrendingUp, label: 'This Week', value: stats.thisWeek, gradient: 'from-emerald-500 to-teal-600', delay: 0.15 },
+    { icon: TrendingUp, label: 'This Week', value: stats.thisWeek, gradient: 'from-amber-500 to-orange-600', delay: 0.15 },
   ];
 
   const quickActions = [

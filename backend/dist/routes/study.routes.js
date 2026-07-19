@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const study_controller_1 = require("../controllers/study.controller");
+const router = (0, express_1.Router)();
+router.get('/dashboard', auth_middleware_1.protect, study_controller_1.getDashboardAnalytics);
+router.post('/flashcards/generate', auth_middleware_1.protect, study_controller_1.generateFlashcards);
+router.post('/flashcards/save', auth_middleware_1.protect, study_controller_1.saveFlashcards);
+router.get('/flashcards/due', auth_middleware_1.protect, study_controller_1.getDueFlashcards);
+router.post('/flashcards/review', auth_middleware_1.protect, study_controller_1.reviewFlashcard);
+router.post('/quiz/generate', auth_middleware_1.protect, study_controller_1.generateQuiz);
+router.post('/quiz/submit', auth_middleware_1.protect, study_controller_1.submitQuiz);
+router.post('/tutor/chat', auth_middleware_1.protect, study_controller_1.chatWithTutor);
+exports.default = router;

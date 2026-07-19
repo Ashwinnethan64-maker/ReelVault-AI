@@ -1,9 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Sparkles, RotateCcw, MessageSquare, Loader2 } from 'lucide-react';
+import { X, Send, Sparkles, RotateCcw, MessageSquare, Loader2, Mic, MicOff, Copy, RefreshCw, Square, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '@/lib/supabase';
+
+interface ISpeechRecognition {
+  lang: string;
+  interimResults: boolean;
+  onresult: (event: { results: Array<{ 0: { transcript: string } }> }) => void;
+  onerror: () => void;
+  onend: () => void;
+  start: () => void;
+  stop: () => void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => ISpeechRecognition;
+    webkitSpeechRecognition: new () => ISpeechRecognition;
+  }
+}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -17,8 +34,11 @@ export const AIAssistant: React.FC = () => {
     { role: 'assistant', content: 'Hi! I\'m your **Vault AI**. Ask me anything about your saved reels.\n\nTry:\n- *"Summarize my React reels"*\n- *"What did I save about Docker?"*\n- *"Find all AI-related reels"*' }
   ]);
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<ISpeechRecognition | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,11 +48,97 @@ export const AIAssistant: React.FC = () => {
     if (isOpen) scrollToBottom();
   }, [messages, isOpen]);
 
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        
+        // Fetch last session ID
+        const sRes = await fetch(`${apiUrl}/chat/sessions`, {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (!sRes.ok) return;
+        const sessions = await sRes.json();
+        if (sessions.length > 0) {
+          const sid = sessions[0].id;
+          setSessionId(sid);
+          
+          // Fetch messages for that session
+          const mRes = await fetch(`${apiUrl}/chat/sessions/${sid}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` }
+          });
+          if (mRes.ok) {
+            const mData = await mRes.json();
+            if (mData.messages && mData.messages.length > 0) {
+              setMessages(mData.messages.map((m: any) => ({ role: m.role, content: m.content })));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch chat history:", err);
+      }
+    };
+    if (isOpen && messages.length === 1 && !sessionId) {
+      fetchHistory();
+    }
+  }, [isOpen]);
+
   const resetChat = () => {
+    stopGeneration();
     setSessionId(null);
     setMessages([
       { role: 'assistant', content: 'Chat cleared! Start a new conversation.' }
     ]);
+  };
+
+  const toggleListen = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Your browser does not support Voice AI.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event: { results: Array<{ 0: { transcript: string } }> }) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0])
+        .map((result) => result.transcript)
+        .join('');
+      setInput(transcript);
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognition.start();
+    setIsListening(true);
+  };
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsTyping(false);
+    }
+  };
+
+  const handleEdit = (index: number) => {
+    if (isTyping) return;
+    const messageToEdit = messages[index].content;
+    setInput(messageToEdit);
+    setMessages(messages.slice(0, index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +150,8 @@ export const AIAssistant: React.FC = () => {
     const allMessages = [...messages, { role: 'user' as const, content: userMessage }];
     setMessages(allMessages);
     setIsTyping(true);
+
+    abortControllerRef.current = new AbortController();
 
     try {
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
@@ -61,7 +169,8 @@ export const AIAssistant: React.FC = () => {
         body: JSON.stringify({
           messages: allMessages.filter(m => m.content !== ''),
           sessionId
-        })
+        }),
+        signal: abortControllerRef.current.signal
       });
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
@@ -98,15 +207,20 @@ export const AIAssistant: React.FC = () => {
           }
         }
       }
-    } catch (error) {
-      console.error(error);
-      setMessages(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: '⚠️ Failed to connect to the AI. Please check that the backend server is running.' };
-        return next;
-      });
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Stream aborted');
+      } else {
+        console.error(error);
+        setMessages(prev => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: '⚠️ Looks like something went wrong while processing that request. Let\'s try again.' };
+          return next;
+        });
+      }
     } finally {
       setIsTyping(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -142,7 +256,7 @@ export const AIAssistant: React.FC = () => {
                   <h3 className="text-sm font-bold text-white">Vault AI</h3>
                   <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                    RAG-Powered
+                    Vault-Powered
                   </p>
                 </div>
               </div>
@@ -166,58 +280,115 @@ export const AIAssistant: React.FC = () => {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800">
               {messages.map((msg, idx) => (
-                <div key={idx} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={idx} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'justify-start'} group`}>
                   {msg.role === 'assistant' && (
                     <div className="h-6 w-6 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-1">
                       <Sparkles className="w-3 h-3 text-indigo-400" />
                     </div>
                   )}
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-zinc-800/80 text-zinc-200 rounded-bl-sm border border-white/5'}`}>
-                    {msg.role === 'assistant' && msg.content === '' && isTyping ? (
-                      <span className="flex items-center gap-1 h-5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '0.15s' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '0.3s' }} />
-                      </span>
-                    ) : msg.role === 'assistant' ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({ className, children, ...props }) {
-                            const isBlock = className?.includes('language-');
-                            return isBlock ? (
-                              <pre className="bg-zinc-900 rounded-lg p-3 my-2 overflow-x-auto text-xs font-mono border border-white/5">
-                                <code className={className}>{children}</code>
-                              </pre>
-                            ) : (
-                              <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-xs font-mono text-indigo-300" {...props}>{children}</code>
-                            );
-                          },
-                          p({ children }) { return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>; },
-                          ul({ children }) { return <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>; },
-                          ol({ children }) { return <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>; },
-                          li({ children }) { return <li className="text-zinc-300">{children}</li>; },
-                          strong({ children }) { return <strong className="text-white font-semibold">{children}</strong>; },
-                          em({ children }) { return <em className="text-zinc-300 italic">{children}</em>; },
-                          h3({ children }) { return <h3 className="text-white font-bold mt-2 mb-1">{children}</h3>; },
-                          a({ href, children }) { return <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">{children}</a>; },
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    ) : (
-                      <span>{msg.content}</span>
-                    )}
-                  </div>
                   {msg.role === 'user' && (
                     <div className="h-6 w-6 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-1">
                       <MessageSquare className="w-3 h-3 text-zinc-300" />
                     </div>
                   )}
+                  
+                  <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full max-w-[85%]`}>
+                    <div className={`w-full rounded-2xl px-4 py-2.5 text-sm ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-zinc-800/80 text-zinc-200 rounded-tl-sm border border-white/5'}`}>
+                      {msg.role === 'assistant' && msg.content === '' && isTyping ? (
+                        <span className="flex items-center gap-2 h-5 text-zinc-400 font-medium">
+                          Thinking
+                          <span className="flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-zinc-400 animate-bounce" />
+                            <span className="w-1 h-1 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '0.15s' }} />
+                            <span className="w-1 h-1 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '0.3s' }} />
+                          </span>
+                        </span>
+                      ) : msg.role === 'assistant' ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code({ className, children, ...props }) {
+                              const isBlock = className?.includes('language-');
+                              return isBlock ? (
+                                <pre className="bg-zinc-900 rounded-lg p-3 my-2 overflow-x-auto text-xs font-mono border border-white/5">
+                                  <code className={className}>{children}</code>
+                                </pre>
+                              ) : (
+                                <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-xs font-mono text-indigo-300" {...props}>{children}</code>
+                              );
+                            },
+                            p({ children }) { return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>; },
+                            ul({ children }) { return <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>; },
+                            ol({ children }) { return <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>; },
+                            li({ children }) { return <li className="text-zinc-300">{children}</li>; },
+                            strong({ children }) { return <strong className="text-white font-semibold">{children}</strong>; },
+                            em({ children }) { return <em className="text-zinc-300 italic">{children}</em>; },
+                            h3({ children }) { return <h3 className="text-white font-bold mt-2 mb-1">{children}</h3>; },
+                            a({ href, children }) { return <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">{children}</a>; },
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      ) : (
+                        <span>{msg.content}</span>
+                      )}
+                      
+                      {/* Message Actions for Assistant */}
+                      {msg.role === 'assistant' && msg.content && !isTyping && (
+                        <div className="flex gap-2 mt-3 pt-2 border-t border-white/5">
+                          <button 
+                            onClick={() => navigator.clipboard.writeText(msg.content)}
+                            className="flex items-center gap-1.5 text-[10px] text-zinc-400 hover:text-white transition-colors"
+                          >
+                            <Copy className="w-3 h-3" /> Copy
+                          </button>
+                          {idx === messages.length - 1 && (
+                            <button 
+                              onClick={() => {
+                                const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                                if (lastUserMsg) {
+                                  setInput(lastUserMsg.content);
+                                  const newMessages = messages.slice(0, messages.length - 2);
+                                  setMessages(newMessages);
+                                }
+                              }}
+                              className="flex items-center gap-1.5 text-[10px] text-zinc-400 hover:text-white transition-colors"
+                            >
+                              <RefreshCw className="w-3 h-3" /> Retry
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Message Actions for User */}
+                    {msg.role === 'user' && !isTyping && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity mt-1 mr-2">
+                        <button
+                          onClick={() => handleEdit(idx)}
+                          className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-white"
+                        >
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Stop Generation Button */}
+            {isTyping && (
+              <div className="flex justify-center pb-2 bg-zinc-900/40">
+                <button
+                  onClick={stopGeneration}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 hover:text-white hover:bg-zinc-700 transition-all shadow-md"
+                >
+                  <Square className="w-3 h-3 fill-current" /> Stop generating
+                </button>
+              </div>
+            )}
 
             {/* Input */}
             <form onSubmit={handleSubmit} className="p-3 border-t border-white/5 bg-zinc-900/40 shrink-0">
@@ -229,6 +400,15 @@ export const AIAssistant: React.FC = () => {
                   disabled={isTyping}
                   className="flex-1 bg-zinc-950 border border-white/10 rounded-full pl-4 pr-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all disabled:opacity-50"
                 />
+                <button
+                  type="button"
+                  onClick={toggleListen}
+                  disabled={isTyping}
+                  className={`h-9 w-9 rounded-full flex items-center justify-center transition-all shrink-0 ${isListening ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50 animate-pulse' : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-50'}`}
+                  title={isListening ? "Stop listening" : "Voice AI"}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
                 <button
                   type="submit"
                   disabled={!input.trim() || isTyping}
